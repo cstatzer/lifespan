@@ -1,0 +1,377 @@
+---
+title: "`r input$report_name`"
+author: "`r input$report_author`"
+urlcolor: blue
+output:
+  pdf_document:
+    fig_caption: yes
+    highlight: tango
+    number_sections: yes
+    toc: yes
+    toc_depth: 4
+  word_document:
+    toc: yes
+    toc_depth: '4'
+header-includes:
+- \newcommand{\blandscape}{\begin{landscape}}
+- \newcommand{\elandscape}{\end{landscape}}
+- \usepackage{booktabs}
+- \usepackage{longtable}
+- \usepackage{array}
+- \usepackage{multirow}
+- \usepackage{wrapfig}
+- \usepackage{float}
+- \usepackage{colortbl}
+- \usepackage{pdflscape}
+- \usepackage{tabu}
+- \usepackage{threeparttable}
+- \usepackage{threeparttablex}
+- \usepackage[normalem]{ulem}
+- \usepackage{makecell}
+- \usepackage{subfig}
+- \usepackage{appendix}
+- \usepackage{fancyhdr} # header and footer
+- \pagestyle{fancy}  # header and footer
+- \fancyfoot[OC,EC]{Automated lifespan report}  # header and footer
+- \fancyfoot[OL,ER]{Cyril Statzer}  # header and footer
+- \fancyfoot[OR,EL]{\thepage}  # header and footer
+
+---
+
+```{r global, echo=FALSE,warning=FALSE}
+# get Latex to work
+# install.packages('tinytex') # tested successfully with tinytex_0.16
+# tinytex::install_tinytex()
+
+# FOR YAML HEADER
+# bibliography: ref.bib
+
+
+options(tinytex.verbose = TRUE)
+library(kableExtra) #needs to be loaded in the markdown
+knitr::opts_chunk$set(echo = FALSE,message = FALSE)
+```
+
+
+```{r module to run outside shiny, echo=FALSE,warning=FALSE}
+run_outside_shiny = FALSE
+if (run_outside_shiny){
+source("./helper.R")
+values <- readRDS(file = "values.rds")
+input <- readRDS(file = "input.rds")
+# input$time_window <- c(0,70)
+}
+```
+
+```{r data cleanup}
+values$data <- values$data %>% mutate(Trial = Trial %>% str_replace_all(string = .,pattern = "_",replacement = " "))
+data <- values$data 
+```
+
+
+
+\newpage
+\newpage
+
+\section{Comparing biological repeats}
+```{r, eval = TRUE, results='asis',fig.align='center',fig.height= 12,fig.width=14,out.height='60%'}
+pval_list <- list()
+exp <- unique(values$data$Trial)
+e <- exp[1]
+for (e in exp) {
+  cat(paste0("\n\n\\subsection{ Trial ",e,"}\n"))
+  sub <- values$data[values$data$Trial == e,]
+    # lifespan by strain & condition
+    fit <- ls_fit(data = sub,yvar = 'Surv(Death,1-Censored)',xvars = c("Strain","Condition.1"),facilitate_names = TRUE )
+    col.pal <- make_col_palette2(data = sub,fit = fit,colname_to_color = "Strain", base_col = values$pal$strain.col)
+    lty <- make_lty_palette(data = sub,fit = fit,colname_to_set_lty = "Condition.1") # what line to dash
+    ggsurv <- ggsurvplot(fit = fit,data = sub ,conf.int = as.logical(input$show_ls_conf_int),legend = "top",title = paste("Survival curve of: ",e),xlim = input$time_window,pval = FALSE,pval.method = TRUE,surv.median.line = "hv",censor = as.logical(input$show_censored),censor.size = 9,risk.table = TRUE,tables.height = 0.3, xlab = "Time [days]",size = 3,fontsize = 5,risk.table.fontsize = 5,linetype = lty,palette = col.pal, tables.y.text.col = TRUE)
+    ggsurv$plot <- ggsurv$plot +  theme(legend.key.width = unit(3, "cm"))
+    print(ggsurv)
+    
+    out <- kable_table_assemble(data = sub,xvars = c("Strain","Condition.1"),round_digits = 2,facilitate_names = TRUE)
+    df <- kable_table_plot_latex(df = out$df, num_rows = out$num_rows, stat_tables = out$stat_tables,caption = paste0("Survival table for ",e))
+    print(df)
+    pval <- simplify_pvals(df = out$pval_mats[[1]], modification = "cutoff")
+    colnames(pval) <- gsub(pattern = "_",replacement = " ",x = colnames(pval))
+    rownames(pval) <- gsub(pattern = "_",replacement = " ",x = rownames(pval))
+    pval <- kable_pvalmat_latex(df = pval,caption = paste0("\\textit{P}-value matrix for ",e))
+    pval_list[[e]] <- pval
+  cat("\n\n\\pagebreak\n")
+}
+```
+\newpage
+
+# _P_-value matrices
+```{r, eval=TRUE, results='asis',message=FALSE,warning=FALSE}
+for (i in 1:length(pval_list)) {
+  print(pval_list[[i]])
+}
+```
+\newpage
+
+\section{Merged trials}
+```{r, eval = TRUE, results='asis',fig.align='center',fig.height= 12,fig.width=14,out.height='60%'}
+cat(paste0("\n\n\\subsection{ Combined trials}\n"))
+sub <- values$data
+# lifespan by strain & condition
+fit <- ls_fit(data = sub,yvar = 'Surv(Death,1-Censored)',xvars = c("Strain","Condition.1"),facilitate_names = TRUE )
+col.pal <- make_col_palette2(data = sub,fit = fit,colname_to_color = "Strain", base_col = values$pal$strain.col)
+lty <- make_lty_palette(data = sub,fit = fit,colname_to_set_lty = "Condition.1") # what line to dash
+ggsurv <- ggsurvplot(fit = fit,data = sub ,conf.int = as.logical(input$show_ls_conf_int),legend = "top",title = paste("Survival curve of: ",e),xlim = input$time_window,pval = FALSE,pval.method = TRUE,surv.median.line = "hv",censor = as.logical(input$show_censored),censor.size = 9,risk.table = TRUE,tables.height = 0.3, xlab = "Time [days]",size = 3,fontsize = 5,risk.table.fontsize = 5,linetype = lty,palette = col.pal, tables.y.text.col = TRUE)
+ggsurv$plot <- ggsurv$plot +  theme(legend.key.width = unit(3, "cm"))
+print(ggsurv)
+
+out <- kable_table_assemble(data = sub,xvars = c("Strain","Condition.1"),round_digits = 2,facilitate_names = TRUE)
+df <- kable_table_plot_latex(df = out$df, num_rows = out$num_rows, stat_tables = out$stat_tables,caption = paste0("Survival table for ",e))
+print(df)
+cat("\n\n\\pagebreak\n")
+```
+
+# Overview tables
+
+```{r table, eval=TRUE, results='asis'}
+cat(paste0("\n\\subsection{Comparing strains and conditions}\n"))
+out <- kable_table_assemble(data = values$data,xvars = c("Strain","Condition.1"),facilitate_names = TRUE,round_digits = 2)
+df <- kable_table_plot_latex(df = out$df, num_rows = out$num_rows, stat_tables = out$stat_tables)
+df
+# df %>% landscape()
+```
+\newpage
+
+```{r, results='asis'}
+if(values$data$Strain %>% n_distinct() > 2) {
+  cat(paste0("\n\\subsection{Comparing strains only}\n"))
+  out <- kable_table_assemble(data = values$data,xvars = c("Strain"),facilitate_names = TRUE,round_digits = 2)
+  df <- kable_table_plot_latex(df = out$df, num_rows = out$num_rows, stat_tables = out$stat_tables)
+  df
+  # df %>% landscape()
+}
+```
+\newpage
+
+```{r, results='asis'}
+if(values$data$Condition.1 %>% n_distinct() > 2) {
+  cat(paste0("\n\\subsection{Comparing conditions only}\n"))
+  out <- kable_table_assemble(data = values$data,xvars = c("Condition.1"),facilitate_names = TRUE,round_digits = 2)
+  df <- kable_table_plot_latex(df = out$df, num_rows = out$num_rows, stat_tables = out$stat_tables)
+  df
+# df %>% landscape()
+}
+
+```
+
+\newpage
+# Appendix
+\appendix
+
+# Diagnostic plots to estimate data quality
+```{r, fig.height = 10, fig.width= 10, eval=TRUE, warning=FALSE, results='asis'}
+if("Plate.Position.Name" %in% colnames(values$data)) {
+  cat(paste0("\n\\subsection{Number of death per plate}\n"))
+  
+  bar_obs_deaths <- plot_bar_obs_deaths(data = values$data,
+                                        levels_Condition.1 = input$condition_factor_order, 
+                                        strain.col = values$pal$strain.col,
+                                        Condition.1.col = values$Condition.1.col,
+                                        Condition.1.alpha = values$Condition.1.alpha
+                                        )
+  bar_obs_deaths + facet_wrap(Trial ~ Device)
+}
+```
+
+
+```{r, fig.height = 10, fig.width= 10, eval=TRUE, warning=FALSE, results='asis'}
+if("Plate.Position.Name" %in% colnames(values$data)) {
+  cat(paste0("\n\\subsection{Correlation of plate crowding and survival}\n"))
+
+dot_corr_numb_vs_ls <- plot_dot_corr_numb_vs_ls(data = values$data,
+                                                levels_Condition.1 = input$condition_factor_order,
+                                                strain.col = values$pal$strain.col,
+                                                Condition.1.col = values$Condition.1.col,
+                                                Condition.1.alpha = values$Condition.1.alpha,
+                                                fullrange = FALSE
+                                                )
+dot_corr_numb_vs_ls$g + facet_wrap(Trial ~ Device)
+}
+```
+
+```{r, fig.height = 10, fig.width= 10, eval=TRUE, warning=FALSE, results='asis'}
+if("Plate.Position.Name" %in% colnames(values$data)) {
+  cat(paste0("\n\\subsection{Lifespan distribution by plate}\n"))
+  box_plate_position <- plot_box_plate_position(data = values$data,
+                                                 strain.col = values$pal$strain.col,
+                                                 Condition.1.col = values$Condition.1.col,
+                                                 Condition.1.alpha = values$Condition.1.alpha
+                                                )
+  box_plate_position + facet_wrap(Trial ~ Device)
+}
+```
+
+
+```{r, fig.height = 10, fig.width= 10, eval=TRUE, warning=FALSE, results='asis'}
+if(n_distinct(values$data$Plate.Row) > 1 | n_distinct(values$data$Plate.Column) > 1) {
+  cat(paste0("\n\\subsection{Scanner loading}\n"))
+  
+  row_col_filled_data <- mutate_row_col_fill(data = values$data)
+  g <- plot_scanner_loading(row_col_filled_data = row_col_filled_data,
+                            levels_Condition.1 = input$condition_factor_order,
+                            strain.col = values$pal$strain.col,
+                            Condition.1.col = values$Condition.1.col,
+                            Condition.1.alpha = values$Condition.1.alpha
+                            )
+  g + facet_grid(Trial ~ Device)
+}
+```
+
+
+# Additional dimensions in the dataset
+
+## Movement with age
+```{r, fig.height = 10, fig.width= 10, eval=TRUE, warning=FALSE, results='asis'}
+if("Duration_Slow" %in% colnames(values$data)) {
+  cat(paste0("\n\\subsection{Scanner loading}\n"))
+  movement_with_age <- plot_movement_with_age(data = values$data,
+                                              levels_Condition.1 = input$condition_factor_order,
+                                              strain.col = values$pal$strain.col,
+                                              Condition.1.col = values$Condition.1.col,
+                                              Condition.1.alpha = values$Condition.1.alpha
+                                              )    
+  movement_with_age + facet_wrap(Trial ~ Strain)
+}
+```
+
+
+# Individual scanners
+\section{Comparing biological repeats by scanner}
+```{r, eval = TRUE, results='asis',fig.align='center',fig.height= 12,fig.width=14,out.height='60%'}
+pval_list <- list()
+exp <- unique(values$data$Trial)
+for (e in exp) {
+  cat(paste0("\n\n\\subsection{ Trial ",e,"}\n"))
+  sub <- values$data[values$data$Trial == e,]
+    # lifespan by strain & condition
+    fit <- ls_fit(data = sub,yvar = 'Surv(Death,1-Censored)',xvars = c("Strain","Condition.1", "Device"),facilitate_names = FALSE)
+    col.pal <- make_col_palette2(data = sub,fit = fit,colname_to_color = "Strain", base_col = values$pal$strain.col)
+    lty <- make_lty_palette(data = sub,fit = fit,colname_to_set_lty = "Condition.1") # what line to dash
+    ggsurv <- ggsurvplot(fit = fit,data = sub ,conf.int = as.logical(input$show_ls_conf_int),linetype = lty, palette = col.pal, size = 3)
+    ggsurv$plot <- ggsurv$plot +  theme(legend.key.width = unit(3, "cm"), legend.text=element_text(size=8)) + facet_wrap(. ~ Device) + guides(color = guide_legend(ncol = 3 ))
+    print(ggsurv)
+    
+    out <- kable_table_assemble(data = sub,xvars = c("Strain","Condition.1","Device"),round_digits = 2,facilitate_names = TRUE)
+    df <- kable_table_plot_latex(df = out$df, num_rows = out$num_rows, stat_tables = out$stat_tables,caption = paste0("Survival table for ",e))
+    print(df)
+    pval <- simplify_pvals(df = out$pval_mats[[1]], modification = "cutoff")
+    colnames(pval) <- gsub(pattern = "_",replacement = " ",x = colnames(pval))
+    rownames(pval) <- gsub(pattern = "_",replacement = " ",x = rownames(pval))
+    pval <- kable_pvalmat_latex(df = pval,caption = paste0("\\textit{P}-value matrix for ",e))
+    pval_list[[e]] <- pval
+  cat("\n\n\\pagebreak\n")
+}
+```
+
+
+\section{Comparing biological repeats by scanner and plate}
+```{r, eval = TRUE, results='asis',fig.align='center',fig.height= 12,fig.width=14,out.height='60%'}
+pval_list <- list()
+exp <- unique(values$data$Trial)
+for (e in exp) {
+  cat(paste0("\n\n\\subsection{ Trial ",e,"}\n"))
+  sub <- values$data[values$data$Trial == e,]
+    # lifespan by strain & condition
+    fit <- ls_fit(data = sub,yvar = 'Surv(Death,1-Censored)',xvars = c("Strain","Condition.1", "Device", "Plate.Position.Name"),facilitate_names = FALSE)
+    col.pal <- make_col_palette2(data = sub,fit = fit,colname_to_color = "Strain", base_col = values$pal$strain.col)
+    lty <- make_lty_palette(data = sub,fit = fit,colname_to_set_lty = "Condition.1") # what line to dash
+    ggsurv <- ggsurvplot(fit = fit,data = sub ,conf.int = as.logical(input$show_ls_conf_int),linetype = lty, palette = col.pal, size = 3)
+    ggsurv$plot <- ggsurv$plot +  theme(legend.key.width = unit(3, "cm"), legend.text=element_text(size=8)) + facet_wrap(. ~ Device) + guides(color = guide_legend(ncol = 3 ))
+    print(ggsurv)
+    
+    out <- kable_table_assemble(data = sub,xvars = c("Strain","Condition.1","Device","Plate.Position.Name"),round_digits = 2,facilitate_names = TRUE)
+    df <- kable_table_plot_latex(df = out$df, num_rows = out$num_rows, stat_tables = out$stat_tables,caption = paste0("Survival table for ",e))
+    print(df)
+    pval <- simplify_pvals(df = out$pval_mats[[1]], modification = "cutoff")
+    colnames(pval) <- gsub(pattern = "_",replacement = " ",x = colnames(pval))
+    rownames(pval) <- gsub(pattern = "_",replacement = " ",x = rownames(pval))
+    pval <- kable_pvalmat_latex(df = pval,caption = paste0("\\textit{P}-value matrix for ",e))
+    pval_list[[e]] <- pval
+  cat("\n\n\\pagebreak\n")
+}
+```
+
+
+\section{Merged trials by scanner and plate}
+```{r, eval = TRUE, results='asis',fig.align='center',fig.height= 12,fig.width=14,out.height='60%'}
+cat(paste0("\n\n\\subsection{ Combined trials by scanner and plate}\n"))
+sub <- values$data
+# lifespan by strain & condition
+fit <- ls_fit(data = sub,yvar = 'Surv(Death,1-Censored)',xvars = c("Strain","Condition.1", "Device", "Plate.Position.Name"),facilitate_names = FALSE)
+col.pal <- make_col_palette2(data = sub,fit = fit,colname_to_color = "Strain", base_col = values$pal$strain.col)
+lty <- make_lty_palette(data = sub,fit = fit,colname_to_set_lty = "Condition.1") # what line to dash
+ggsurv <- ggsurvplot(fit = fit,data = sub ,conf.int = as.logical(input$show_ls_conf_int),linetype = lty, palette = col.pal, size = 3)
+ggsurv$plot <- ggsurv$plot +  theme(legend.key.width = unit(3, "cm"), legend.text=element_text(size=8)) + facet_wrap(. ~ Device) + guides(color = guide_legend(ncol = 3 ))
+print(ggsurv)
+out <- kable_table_assemble(data = sub,xvars = c("Strain","Condition.1","Device","Plate.Position.Name"),round_digits = 2,facilitate_names = TRUE)
+df <- kable_table_plot_latex(df = out$df, num_rows = out$num_rows, stat_tables = out$stat_tables,caption = paste0("Survival table for ",e))
+print(df)
+cat("\n\n\\pagebreak\n")
+```
+
+```{r, include = FALSE}
+
+# ### AFT model
+# * CHECK Scanner effects
+# * CHECK Strain effects
+# * CHECK Condition effects 
+# * GET A MAGNITUDE LS CHANGE FOR ALL STRATA --> add to all output tables.
+# 
+# ### Many 2-Strain comparison graphs:
+# * global control to every other curve
+# * all strata separately for each strain
+# * all other strata separately for each condition (eg. DMSO)
+# 
+# ### Biological repeat plots
+# * As in Table for every trial the plots should be made
+# 
+# ### Scanner flatbed arrangement lifespan plots.
+# * Lifespan for every plate
+# 
+# ### Website reactiveness and structure
+# * Make a single settings tab that is available on every tab where everything can be changed.
+# * Improve reversible exclusion & inclusion of PLATES, STRAINS, CONDITIONS, DEVICES, TRIALS (yes and no)
+# * Make all settings changes only run when a button is pressed to prevent constant updating
+# * Allow editing of strain names, condition names in the website and then allow the download of the updated csv sheet.
+# * potentially allow an excel import / export.
+# 
+# 
+# ### Styling the UI
+# * Use shinyJS to hide the other tabs until the data was correctly uploaded.
+# * use CSS styling to improve website appearance
+
+```
+
+\newpage
+
+# Exporting datasets to streamline reproducible research
+
+## Smallest possible reproducible unit
+```{r}
+values$data %>% minimal_reproducable_export() %>% write_csv(path = "./reproducible_dataset_minim.csv")
+```
+
+## 
+```{r,eval=TRUE, export,echo=FALSE, include=TRUE}
+values$data %>% export_for_jmp_freq1() %>% write_csv(path = "./reproducible_dataset_jmp.csv")
+```
+
+
+# Literature & highlighted software packages
+
+All work related to the _lifespan machine_ is based on published work which forms the foundation of all performed experiments and is acknowledged here. Further information on the setup can be found in the original publication as well as on [github](https://github.com/nstroustrup/lifespan).
+For all the tools and documentation the R communitiy provides we are very thankful, especially, all contributors of the _survminer_, _tidyr_, _KableExtra_ and _shiny_ packages which are acknowledged here.
+
+```{r}
+sessionInfo()
+```
+
+# References
+
