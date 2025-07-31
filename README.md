@@ -3,13 +3,14 @@
 Interactive analysis tool to analyze, visualize and perform statistical tests on lifespan datasets. The tool is compatible with manually measured as well as automatically acquired datasets. Diagnostic features allow the identification of batch effects.
 
 ## Available resources
-- [Tool](http://ce-matrisome-annotator.permalink.cc) to interactively analyze datasets.
+- Interactive Shiny application (`app.R`) for data analysis and visualization.
 
 ## Setup
-1. Clone repository.
-2. Install needed packages (under development).
-3. Run App (using [RStudio](https://rstudio.com)).
-
+1. Clone the repository.
+2. Install dependencies:
+   - Open R and run `source("helper.R")` to install and load required packages.
+3. Launch the Shiny application:
+   - In R, execute `shiny::runApp("app.R")`, or open `app.R` in RStudio and click "Run App".
 
 ## App preview
 
@@ -17,4 +18,4 @@ Interactive analysis tool to analyze, visualize and perform statistical tests on
 ![Import lifespan dataset](./data/docs/import.png)
 
 ### Export lifespan report
-![Import lifespan analysis](./data/docs/export.png)
+![Export lifespan report](./data/docs/export.png)
